@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sitemap Visualization Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style id="viz-styles">
+        /* Global Font Update: Monospace */
+        body { 
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; 
+            overflow: hidden; 
+            background-color: #F0F0F0;
+        }
+        
+        /* Node Styling */
+        .node circle {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .node circle:hover {
+            stroke: #8A49FC; /* New Primary */
+            stroke-width: 3px;
+        }
+        
+        /* Fixed text size to prevent hover resizing bug */
+        .node text {
+            font-size: 12px !important;
+            font-weight: 400 !important; /* Force normal weight */
+            font-family: inherit;
+            pointer-events: none;
+            transition: fill 0.2s, opacity 0.3s;
+            text-shadow: 
+                0 1px 0 #F0F0F0, 
+                1px 0 0 #F0F0F0, 
+                0 -1px 0 #F0F0F0, 
+                -1px 0 0 #F0F0F0;
+        }
+
+        /* Search Highlight Modes */
+        .search-mode .node {
+            opacity: 0.1; /* Dim unmatched nodes significantly */
+            transition: opacity 0.3s;
+        }
+        .search-mode .node.node-matched {
+            opacity: 1;
+        }
+        .search-mode .node.node-path {
+            opacity: 0.6; /* Path to match is visible but not fully highlighted */
+        }
+        
+        .search-mode .link {
+            opacity: 0.05;
+            transition: opacity 0.3s;
+        }
+        .search-mode .link.link-path {
+            opacity: 0.4;
+            stroke: #8A49FC;
+        }
+
+        /* Link Mode Styles */
+        body.link-mode-active .node {
+            cursor: alias !important;
+        }
+        body.link-mode-active .node text {
+            fill: #8A49FC !important;
+            text-decoration: underline;
+            pointer-events: all !important;
+        }
+        body.link-mode-active .node circle {
+            stroke: #8A49FC;
+        }
+
+        /* Link Styling */
+        .link {
+            fill: none;
+            stroke: #cbd5e1;
+            stroke-width: 1.5px;
+            transition: stroke 0.3s, opacity 0.3s;
+        }
+
+        /* Treemap Specific */
+        .treemap-node {
+            cursor: pointer;
+            stroke: #fff;
+        }
+        .treemap-text {
+            stroke: none !important;
+            font-size: 11px;
+            pointer-events: none;
+            font-weight: 500;
+        }
+
+        #drop-zone {
+            transition: all 0.2s ease;
+        }
+        #drop-zone.dragover {
+            border-color: #8A49FC;
+            background-color: #e9dffc;
+        }
+
+        body.link-mode-active #drop-zone {
+            box-shadow: inset 0 0 0 2px #8A49FC;
+        }
+
+        /* Link Mode Badge */
+        #link-mode-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: #94a3b8; /* slate-400 */
+            font-weight: 500;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+            background-color: transparent;
+        }
+        #link-mode-badge svg {
+            opacity: 0.7;
+        }
+        #link-mode-badge .active-text {
+            display: none;
+        }
+        
+        /* Link Mode Badge (Active State) */
+        body.link-mode-active #link-mode-badge {
+            color: #8A49FC;
+            background-color: rgba(138, 73, 252, 0.1);
+            border-color: rgba(138, 73, 252, 0.2);
+            font-weight: 700;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        body.link-mode-active #link-mode-badge svg {
+            opacity: 1;
+        }
+        body.link-mode-active #link-mode-badge .inactive-text {
+            display: none;
+        }
+        body.link-mode-active #link-mode-badge .active-text {
+            display: inline;
+        }
+
+        /* Info Panel */
+        #info-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            max-width: 400px;
+            z-index: 50;
+            pointer-events: none;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8A49FC',
+                        'primary-dark': '#7c3fe6',
+                        'primary-light': '#a78bfa'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-[#F0F0F0] h-screen flex flex-col font-mono">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 px-4 py-3 shadow-sm z-10 flex flex-col lg:flex-row items-center justify-between gap-4">
+        
+        <!-- Left: Title -->
+        <h1 class="font-bold text-slate-800 text-lg leading-tight tracking-tight whitespace-nowrap flex-shrink-0">Sitemap Visualizer</h1>
+
+        <!-- Center: Controls (Type, Levels, Treemap Aspect, Search) -->
+        <div class="flex flex-wrap items-center justify-center gap-3 w-full lg:w-auto flex-grow" id="controls" style="opacity: 0.5; pointer-events: none;">
+            
+            <!-- Type Selector -->
+            <div class="relative">
+                <select id="viz-type" class="h-10 text-sm border border-slate-300 rounded px-2 bg-white focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-shadow cursor-pointer min-w-[140px]">
+                    <option value="tree">Collapsible Tree</option>
+                    <option value="radial-tree">Radial Tidy Tree</option>
+                    <option value="radial-cluster">Radial Cluster</option>
+                    <option value="treemap">Cascaded Treemap</option>
+                    <option value="indented">Indented Tree</option>
+                </select>
+            </div>
+
+            <!-- Depth Controls -->
+            <div class="flex items-center bg-slate-100 p-0.5 rounded border border-slate-200 h-10">
+                <button onclick="expandToLevel(2)" class="h-full px-3 text-xs hover:bg-white rounded-sm text-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:z-10" title="Level 2">Lvl 2</button>
+                <button onclick="expandToLevel(3)" class="h-full px-3 text-xs hover:bg-white rounded-sm text-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:z-10" title="Level 3">Lvl 3</button>
+                <button onclick="expandToLevel(4)" class="h-full px-3 text-xs hover:bg-white rounded-sm text-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:z-10" title="Level 4">Lvl 4</button>
+                <button onclick="expandAll()" class="h-full px-3 text-xs hover:bg-white rounded-sm text-slate-700 font-medium transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:z-10">All</button>
+            </div>
+
+            <!-- Treemap Aspect Controls (Hidden by default) -->
+            <div id="treemap-controls" class="hidden items-center bg-slate-100 p-0.5 rounded border border-slate-200 h-10">
+                <span class="px-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ratio</span>
+                <button onclick="setAspect('auto')" data-ratio="auto" class="aspect-btn h-full px-3 text-xs bg-white rounded-sm shadow-sm text-primary font-medium transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:z-10">Auto</button>
+                <button onclick="setAspect('1:1')" data-ratio="1:1" class="aspect-btn h-full px-3 text-xs hover:bg-white rounded-sm text-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:z-10">1:1</button>
+                <button onclick="setAspect('4:3')" data-ratio="4:3" class="aspect-btn h-full px-3 text-xs hover:bg-white rounded-sm text-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:z-10">4:3</button>
+                <button onclick="setAspect('16:9')" data-ratio="16:9" class="aspect-btn h-full px-3 text-xs hover:bg-white rounded-sm text-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:z-10">16:9</button>
+            </div>
+
+            <!-- Search -->
+            <div class="relative h-10">
+                <input type="text" id="search-input" placeholder="Search pages..." class="h-full w-48 pl-9 pr-2 text-sm border border-slate-300 rounded bg-white focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-shadow">
+                <svg class="absolute left-3 top-3 text-slate-400" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow relative overflow-hidden" id="drop-zone">
+        
+        <!-- Info Line & Link Mode Indicator (Top Left) -->
+        <div id="file-info-container" class="absolute top-4 left-4 z-10 hidden flex items-center gap-3">
+            <div id="file-info" class="text-xs text-slate-600 font-medium bg-white/80 px-2.5 py-1.5 rounded backdrop-blur-sm border border-slate-200 shadow-sm">
+                <!-- Populated via JS -->
+            </div>
+            <div id="link-mode-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                <span class="inactive-text">hold ctrl/⌘ for links</span>
+                <span class="active-text">links active</span>
+            </div>
+        </div>
+
+        <!-- Export Menu (Top Right) -->
+        <div id="export-container" class="absolute top-4 right-4 z-10 hidden">
+            <div class="relative">
+                <button id="export-menu-btn" onclick="toggleExportMenu(event)" aria-haspopup="true" aria-expanded="false" class="text-xs text-slate-600 font-medium bg-white/80 hover:bg-white px-2.5 py-1.5 rounded backdrop-blur-sm border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1" disabled>
+                    <span>Export</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                <div id="export-menu" role="menu" class="hidden absolute right-0 top-full mt-1.5 w-32 bg-white/90 backdrop-blur-md rounded border border-slate-200 shadow-lg z-20 focus:outline-none overflow-hidden">
+                    <button role="menuitem" onclick="downloadImage('png')" class="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none border-b border-slate-100">PNG (HD)</button>
+                    <button role="menuitem" onclick="downloadImage('svg')" class="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none">SVG</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-8 text-center z-20 pointer-events-none">
+            <div class="pointer-events-auto flex flex-col items-center">
+                <svg class="mb-4 text-slate-300" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                <h3 class="text-lg font-medium text-slate-600 mb-6">No sitemap loaded</h3>
+                
+                <div class="relative group">
+                    <input type="file" id="main-file-input" accept=".xml" class="hidden">
+                    <label for="main-file-input" class="cursor-pointer bg-primary hover:bg-primary-dark text-white text-base font-medium py-3 px-6 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center gap-2 transform hover:-translate-y-0.5 active:translate-y-0 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        Upload sitemap.xml
+                    </label>
+                </div>
+                <p class="text-sm text-slate-400 mt-4">or drag and drop file here</p>
+            </div>
+        </div>
+
+        <!-- SVG Container -->
+        <div id="viz-container" class="w-full h-full opacity-0 transition-opacity duration-500"></div>
+
+        <!-- Stationary Info Panel -->
+        <div id="info-panel">
+            <div class="text-slate-400 text-xs">Hover over a node to view details</div>
+        </div>
+    </main>
+
+    <script>
+        // --- State ---
+        let rootData = null; 
+        let rawData = null; 
+        let svg, g, zoom;
+        let width, height;
+        let currentViz = 'tree';
+        let i = 0; 
+        let duration = 500; 
+        let isLinkMode = false; 
+        let searchTerm = "";
+        let treemapRatio = 'auto'; // Aspect Ratio State
+
+        const PRIMARY_COLOR = '#8A49FC';
+        const colors = d3.scaleOrdinal(d3.schemeTableau10);
+
+        // --- DOM Elements ---
+        const container = document.getElementById('viz-container');
+        const infoPanel = document.getElementById('info-panel');
+        const fileInput = document.getElementById('main-file-input');
+        const vizSelect = document.getElementById('viz-type');
+        const dropZone = document.getElementById('drop-zone');
+        const controls = document.getElementById('controls');
+        const exportMenuBtn = document.getElementById('export-menu-btn');
+        const exportMenu = document.getElementById('export-menu');
+        const exportContainer = document.getElementById('export-container');
+        const emptyState = document.getElementById('empty-state');
+        const searchInput = document.getElementById('search-input');
+        const fileInfoContainer = document.getElementById('file-info-container');
+        const fileInfo = document.getElementById('file-info');
+        const treemapControls = document.getElementById('treemap-controls');
+
+        // --- Event Listeners ---
+        
+        window.addEventListener('resize', () => {
+            if (rootData) {
+                width = container.clientWidth;
+                height = container.clientHeight;
+                svg.attr("width", width).attr("height", height);
+                update(rootData);
+            }
+        });
+
+        window.addEventListener('click', (e) => {
+            if (!exportMenu.contains(e.target) && !exportMenuBtn.contains(e.target)) {
+                exportMenu.classList.add('hidden');
+                exportMenuBtn.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        function toggleExportMenu(e) {
+            if (e) e.stopPropagation();
+            const isHidden = exportMenu.classList.contains('hidden');
+            if (isHidden) {
+                exportMenu.classList.remove('hidden');
+                exportMenuBtn.setAttribute('aria-expanded', 'true');
+            } else {
+                exportMenu.classList.add('hidden');
+                exportMenuBtn.setAttribute('aria-expanded', 'false');
+            }
+        }
+
+        exportMenuBtn.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (exportMenu.classList.contains('hidden')) toggleExportMenu(e);
+            }
+        });
+
+        exportMenu.addEventListener('keydown', (e) => {
+            const items = Array.from(exportMenu.querySelectorAll('button'));
+            const index = items.indexOf(document.activeElement);
+            
+            if (e.key === 'Escape') {
+                toggleExportMenu();
+                exportMenuBtn.focus();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const next = items[index + 1] || items[0];
+                next.focus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prev = items[index - 1] || items[items.length - 1];
+                prev.focus();
+            }
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Control' || e.key === 'Meta') { 
+                isLinkMode = true;
+                document.body.classList.add('link-mode-active');
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'Control' || e.key === 'Meta') {
+                isLinkMode = false;
+                document.body.classList.remove('link-mode-active');
+            }
+        });
+
+        vizSelect.addEventListener('change', (e) => {
+            currentViz = e.target.value;
+            
+            // Toggle Treemap Controls Visibility
+            if (currentViz === 'treemap') {
+                treemapControls.classList.remove('hidden');
+                treemapControls.classList.add('flex');
+            } else {
+                treemapControls.classList.add('hidden');
+                treemapControls.classList.remove('flex');
+            }
+
+            if(svg) {
+                let transform;
+                if (currentViz === 'treemap') {
+                    transform = d3.zoomIdentity;
+                } else if (currentViz === 'indented') {
+                   transform = d3.zoomIdentity.translate(40, 40).scale(1); 
+                } else if (currentViz === 'tree') {
+                   transform = d3.zoomIdentity.translate(100, height/2).scale(1);
+                } else {
+                   transform = d3.zoomIdentity.translate(width/2, height/2).scale(1);
+                }
+                svg.transition().duration(750).call(zoom.transform, transform);
+            }
+            update(rootData);
+        });
+
+        // Set Treemap Aspect Ratio
+        function setAspect(ratio) {
+            treemapRatio = ratio;
+            document.querySelectorAll('.aspect-btn').forEach(btn => {
+                if (btn.dataset.ratio === ratio) {
+                    btn.classList.add('bg-white', 'shadow-sm', 'text-primary', 'font-medium');
+                    btn.classList.remove('text-slate-700', 'hover:bg-white');
+                } else {
+                    btn.classList.remove('bg-white', 'shadow-sm', 'text-primary', 'font-medium');
+                    btn.classList.add('text-slate-700', 'hover:bg-white');
+                }
+            });
+            if (rootData && currentViz === 'treemap') update(rootData);
+        }
+
+        // Search Logic
+        let searchTimeout;
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const term = e.target.value.toLowerCase();
+                
+                if (term.length >= 3) {
+                    performSearch(term);
+                } else if (searchTerm.length >= 3 && term.length < 3) {
+                    resetSearch();
+                }
+                searchTerm = term;
+            }, 300);
+        });
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                processFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // --- Core Logic ---
+
+        function handleFileSelect(e) {
+            if (e.target.files.length) {
+                processFile(e.target.files[0]);
+            }
+        }
+
+        function processFile(file) {
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                try {
+                    const text = e.target.result;
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(text, "text/xml");
+                    
+                    const urls = Array.from(xmlDoc.querySelectorAll('url loc')).map(node => node.textContent.trim());
+                    
+                    if (urls.length === 0) throw new Error("No <loc> tags found in XML.");
+
+                    fileInfo.textContent = `${file.name} — ${urls.length} pages`;
+                    fileInfoContainer.classList.remove('hidden');
+                    exportContainer.classList.remove('hidden');
+                    
+                    rawData = buildHierarchy(urls);
+                    initViz(rawData);
+                    
+                    emptyState.style.display = 'none';
+                    container.style.opacity = '1';
+                    controls.style.opacity = '1';
+                    controls.style.pointerEvents = 'auto';
+                    exportMenuBtn.disabled = false;
+
+                } catch (err) {
+                    console.error(err);
+                    alert("Error parsing sitemap: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function buildHierarchy(urls) {
+            const root = { name: "Root", children: [] };
+            
+            urls.forEach(url => {
+                let cleanUrl = url.replace(/https?:\/\//, '');
+                if (cleanUrl.endsWith('/')) cleanUrl = cleanUrl.slice(0, -1);
+                
+                const parts = cleanUrl.split('/');
+                let currentNode = root;
+
+                parts.forEach((part, index) => {
+                    let child = currentNode.children.find(c => c.name === part);
+                    if (!child) {
+                        child = { name: part, children: [], fullUrl: url }; 
+                        currentNode.children.push(child);
+                    }
+                    currentNode = child;
+                });
+            });
+
+            if (root.children.length === 1 && root.children[0].children.length > 0) {
+                 return root.children[0];
+            }
+            return root;
+        }
+
+        function initViz(data) {
+            container.innerHTML = '';
+            width = container.clientWidth;
+            height = container.clientHeight;
+
+            zoom = d3.zoom().scaleExtent([0.1, 4]).on("zoom", (event) => {
+                g.attr("transform", event.transform);
+            });
+
+            svg = d3.select("#viz-container").append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .call(zoom)
+                .on("dblclick.zoom", null); 
+
+            g = svg.append("g");
+
+            rootData = d3.hierarchy(data);
+            
+            rootData.descendants().forEach((d, i) => {
+                d.id = i;
+                d._children = d.children; 
+            });
+
+            collapseToLevel(rootData, 2);
+            svg.call(zoom.transform, d3.zoomIdentity.translate(100, height/2).scale(0.8));
+            update(rootData);
+        }
+
+        function update(source) {
+            if (currentViz === 'tree') renderTree(source);
+            else if (currentViz === 'radial-tree' || currentViz === 'radial-cluster') renderRadial(source);
+            else if (currentViz === 'treemap') renderTreemap(source);
+            else if (currentViz === 'indented') renderIndented(source);
+        }
+
+        // --- Search Logic ---
+
+        function performSearch(term) {
+            document.body.classList.add('search-mode');
+            
+            // Custom recursive search to traverse entire tree (even collapsed)
+            function searchNode(n) {
+                n._isMatch = n.data.name.toLowerCase().includes(term);
+                n._isPath = false;
+                let hasMatchInBranch = n._isMatch;
+                
+                const children = n.children || n._children;
+                if (children) {
+                    children.forEach(c => {
+                        const childHasMatch = searchNode(c);
+                        if (childHasMatch) {
+                            hasMatchInBranch = true;
+                            // Expand parent to show this path
+                            n.children = children;
+                            n._children = null;
+                        }
+                    });
+                }
+                
+                // If node has match in branch but isn't a match itself, it's a path
+                if (hasMatchInBranch && !n._isMatch) {
+                    n._isPath = true;
+                }
+                
+                // If no match in branch, collapse it to hide clutter
+                if (!hasMatchInBranch && n.children) {
+                    n._children = n.children;
+                    n.children = null;
+                }
+                
+                return hasMatchInBranch;
+            }
+            
+            // Reset to unexpanded state momentarily to perform clean search
+            if (rootData) {
+                rootData.each(d => {
+                    if (d.children) {
+                        d._children = d.children;
+                        d.children = null;
+                    }
+                });
+                if(rootData._children) {
+                    rootData.children = rootData._children;
+                    rootData._children = null;
+                }
+                searchNode(rootData);
+                update(rootData);
+            }
+        }
+
+        function resetSearch() {
+            document.body.classList.remove('search-mode');
+            searchTerm = "";
+            
+            // Reset all custom search flags recursively
+            function resetFlags(n) {
+                n._isMatch = false;
+                n._isPath = false;
+                const children = n.children || n._children;
+                if (children) children.forEach(resetFlags);
+            }
+            if (rootData) {
+                resetFlags(rootData);
+                
+                // Reset to default view (Level 2)
+                collapseToLevel(rootData, 2);
+                update(rootData);
+            }
+        }
+
+        // Apply highlighting classes during render
+        function applySearchClasses(selection, isLink = false) {
+            if (!document.body.classList.contains('search-mode')) {
+                selection.classed("node-matched", false).classed("node-path", false)
+                         .classed("link-path", false);
+                
+                // Reset circle colors if not in search mode
+                if(!isLink) {
+                    selection.select("circle")
+                        .attr("fill", d => d._children ? PRIMARY_COLOR : "#fff")
+                        .attr("stroke", PRIMARY_COLOR)
+                        .attr("r", d => d._children ? 6 : 4);
+                }
+                return;
+            }
+
+            if (isLink) {
+                selection.classed("link-path", d => d.target._isPath || d.target._isMatch);
+            } else {
+                selection.classed("node-matched", d => d._isMatch)
+                         .classed("node-path", d => d._isPath);
+                
+                // Specific styling for matched nodes
+                selection.select("circle")
+                    .attr("fill", d => d._isMatch ? "#ef4444" : (d._children ? PRIMARY_COLOR : "#fff"))
+                    .attr("stroke", d => d._isMatch ? "#ef4444" : PRIMARY_COLOR)
+                    .attr("r", d => d._isMatch ? 8 : (d._children ? 6 : 4));
+            }
+        }
+
+        // --- Render Functions ---
+
+        function renderTree(source) {
+            g.selectAll('.treemap-node').remove();
+
+            const treeLayout = d3.tree().nodeSize([30, 240]);
+            treeLayout(rootData);
+
+            const nodes = rootData.descendants();
+            const links = rootData.links();
+
+            const node = g.selectAll('g.node')
+                .data(nodes, d => d.id || (d.id = ++i));
+
+            const nodeEnter = node.enter().append('g')
+                .attr('class', 'node')
+                .attr("transform", d => `translate(${source.y0 || 0},${source.x0 || 0})`)
+                .on('click', click);
+
+            nodeEnter.append('circle')
+                .attr('r', 1e-6);
+
+            nodeEnter.append('text')
+                .attr("dy", ".35em")
+                .attr("x", d => d.children || d._children ? -13 : 13)
+                .attr("text-anchor", d => d.children || d._children ? "end" : "start")
+                .text(d => d.data.name)
+                .style("fill-opacity", 1e-6);
+
+            const nodeUpdate = node.merge(nodeEnter).transition().duration(duration)
+                .attr("transform", d => `translate(${d.y},${d.x})`);
+
+            // Apply Search Styles
+            const nodeUpdateSelection = node.merge(nodeEnter);
+            applySearchClasses(nodeUpdateSelection, false);
+
+            nodeUpdate.select('text')
+                .style("fill-opacity", 1)
+                .attr("transform", "");
+
+            const nodeExit = node.exit().transition().duration(duration)
+                .attr("transform", d => `translate(${source.y},${source.x})`)
+                .remove();
+
+            nodeExit.select('circle').attr('r', 1e-6);
+            nodeExit.select('text').style("fill-opacity", 1e-6);
+
+            const link = g.selectAll('path.link')
+                .data(links, d => d.target.id);
+
+            const linkEnter = link.enter().insert('path', "g")
+                .attr("class", "link")
+                .attr("fill", "none")
+                .attr('d', d => {
+                    const o = {x: source.x0 || 0, y: source.y0 || 0};
+                    return diagonal(o, o);
+                });
+
+            const linkUpdate = link.merge(linkEnter);
+            linkUpdate.transition().duration(duration)
+                .attr('d', d => diagonal(d.source, d.target));
+            
+            applySearchClasses(linkUpdate, true);
+
+            link.exit().transition().duration(duration)
+                .attr('d', d => {
+                    const o = {x: source.x, y: source.y};
+                    return diagonal(o, o);
+                })
+                .remove();
+
+            nodes.forEach(d => {
+                d.x0 = d.x;
+                d.y0 = d.y;
+            });
+
+            setupHoverEffects(g.selectAll('g.node'));
+        }
+
+        function renderRadial(source) {
+            g.selectAll('.treemap-node').remove();
+
+            const radius = Math.min(width, height) / 2;
+            let layout;
+            
+            if (currentViz === 'radial-cluster') {
+                layout = d3.cluster().size([2 * Math.PI, radius * 2]);
+            } else {
+                layout = d3.tree().size([2 * Math.PI, radius * 1.5]).separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
+            }
+
+            layout(rootData);
+            const nodes = rootData.descendants();
+            const links = rootData.links();
+
+            const node = g.selectAll('g.node')
+                .data(nodes, d => d.id);
+
+            const nodeEnter = node.enter().append('g')
+                .attr('class', 'node')
+                .attr("transform", d => `translate(${source.x0 || 0},${source.y0 || 0})`)
+                .on('click', click);
+
+            nodeEnter.append('circle').attr('r', 4);
+            nodeEnter.append('text')
+                .attr("dy", "0.31em")
+                .text(d => d.data.name);
+
+            const nodeUpdate = node.merge(nodeEnter).transition().duration(duration)
+                .attr("transform", d => `rotate(${d.x * 180 / Math.PI - 90}) translate(${d.y},0)`);
+
+            const nodeSelection = node.merge(nodeEnter);
+            applySearchClasses(nodeSelection, false);
+
+            nodeUpdate.select('text')
+                .attr("x", d => d.x < Math.PI === !d.children ? 10 : -10)
+                .attr("text-anchor", d => d.x < Math.PI === !d.children ? "start" : "end")
+                .attr("transform", d => d.x >= Math.PI ? "rotate(180)" : null);
+
+            node.exit().remove();
+
+            const link = g.selectAll('path.link').data(links, d => d.target.id);
+            
+            const linkEnter = link.enter().insert('path', 'g')
+                .attr("class", "link")
+                .attr("fill", "none");
+                
+            const linkUpdate = link.merge(linkEnter);
+            linkUpdate.transition().duration(duration)
+                .attr("d", d3.linkRadial().angle(d => d.x).radius(d => d.y));
+            
+            applySearchClasses(linkUpdate, true);
+            
+            link.exit().remove();
+            
+            setupHoverEffects(g.selectAll('g.node'));
+        }
+
+        function renderTreemap(source) {
+            // 1. Recursive calculation to count ALL subpages (including collapsed ones) 
+            // for accurate parent sizing in the visualization.
+            function computeValues(n) {
+                if (n.children || n._children) {
+                    let sum = 0;
+                    const kids = n.children || n._children;
+                    kids.forEach(child => {
+                        sum += computeValues(child);
+                    });
+                    n.value = sum;
+                } else {
+                    n.value = 1; // It's a leaf
+                }
+                return n.value;
+            }
+            computeValues(rootData);
+            
+            rootData.sort((a, b) => b.value - a.value);
+
+            // 2. Aspect Ratio Logic
+            let tmWidth = width;
+            let tmHeight = height;
+
+            if (treemapRatio === '1:1') {
+                const size = Math.min(width, height);
+                tmWidth = size;
+                tmHeight = size;
+            } else if (treemapRatio === '4:3') {
+                if (width / height > 4/3) { tmHeight = height; tmWidth = height * 4/3; }
+                else { tmWidth = width; tmHeight = width * 3/4; }
+            } else if (treemapRatio === '16:9') {
+                if (width / height > 16/9) { tmHeight = height; tmWidth = height * 16/9; }
+                else { tmWidth = width; tmHeight = width * 9/16; }
+            }
+
+            const offsetX = (width - tmWidth) / 2;
+            const offsetY = (height - tmHeight) / 2;
+
+            const treemap = d3.treemap()
+                .size([tmWidth, tmHeight])
+                .paddingOuter(3)
+                .paddingTop(d => d.depth < 3 ? 18 : 2) // Condense deep trees to avoid D3 collapse
+                .paddingInner(1)
+                .round(true);
+
+            treemap(rootData);
+
+            g.selectAll(".node").remove();
+            g.selectAll(".link").remove();
+            
+            let maxDepth = 0;
+            rootData.each(d => { if(d.depth > maxDepth) maxDepth = d.depth; });
+            
+            const colorScale = d3.scaleLinear()
+                .domain([0, maxDepth])
+                .range([PRIMARY_COLOR, '#f3e8ff']) 
+                .interpolate(d3.interpolateRgb);
+
+            const cells = g.selectAll("g.treemap-node")
+                .data(rootData.descendants().filter(d => d.depth > 0), d => d.id);
+
+            const cellEnter = cells.enter().append("g")
+                .attr("class", "treemap-node")
+                .attr("transform", d => `translate(${d.x0 + offsetX},${d.y0 + offsetY})`);
+
+            cellEnter.append("rect")
+                .attr("id", d => "rect-" + d.id)
+                .attr("width", d => Math.max(0, d.x1 - d.x0))
+                .attr("height", d => Math.max(0, d.y1 - d.y0))
+                .attr("fill", d => colorScale(d.depth)); 
+
+            cellEnter.append("clipPath")
+                .attr("id", d => "clip-" + d.id)
+                .append("use")
+                .attr("href", d => "#rect-" + d.id);
+
+            cellEnter.on('click', (event, d) => {
+                if (isLinkMode || event.ctrlKey || event.metaKey) {
+                    if (d.data.fullUrl) window.open(d.data.fullUrl, '_blank');
+                } else {
+                    click(event, d);
+                }
+            });
+
+            cellEnter.append("text")
+                .attr("clip-path", d => `url(#clip-${d.id})`)
+                .attr("class", "treemap-text")
+                .attr("x", 4)
+                .attr("y", 13)
+                .text(d => d.data.name)
+                .style("opacity", d => (d.x1 - d.x0 > 35 && d.y1 - d.y0 > 15) ? 1 : 0) // Hide text if box is too small
+                .style("fill", d => {
+                    return (d.depth / (maxDepth || 1) < 0.4) ? "white" : "#1e293b";
+                });
+            
+            const cellUpdate = cells.merge(cellEnter);
+            
+            cellUpdate.transition().duration(duration)
+                .attr("transform", d => `translate(${d.x0 + offsetX},${d.y0 + offsetY})`)
+                .select("rect")
+                .attr("width", d => Math.max(0, d.x1 - d.x0))
+                .attr("height", d => Math.max(0, d.y1 - d.y0))
+                .attr("fill", d => colorScale(d.depth));
+
+            cellUpdate.select("text").transition().duration(duration)
+                .style("opacity", d => (d.x1 - d.x0 > 35 && d.y1 - d.y0 > 15) ? 1 : 0);
+
+            cells.exit().remove();
+            
+            // Simple opacity for Treemap search
+            if (searchTerm.length >= 3) {
+                g.selectAll(".treemap-node")
+                    .style("opacity", d => d.data.name.toLowerCase().includes(searchTerm) ? 1 : 0.1);
+            } else {
+                g.selectAll(".treemap-node").style("opacity", 1);
+            }
+
+            setupHoverEffects(g.selectAll(".treemap-node"));
+        }
+
+        function renderIndented(source) {
+            g.selectAll('.treemap-node').remove();
+
+            const nodes = rootData.descendants();
+            const nodeSize = 30; 
+            
+            let index = -1;
+            rootData.eachBefore(n => {
+                n.x = ++index * nodeSize;
+                n.y = n.depth * 20;
+            });
+
+            const link = g.selectAll('path.link')
+                .data(rootData.links(), d => d.target.id);
+            
+            const linkEnter = link.enter().append('path')
+                .attr('class', 'link')
+                .attr("fill", "none")
+                .style('stroke', '#e2e8f0');
+
+            const linkUpdate = link.merge(linkEnter);
+            linkUpdate.transition().duration(duration)
+                .attr('d', d => `M${d.source.y},${d.source.x}V${d.target.x}H${d.target.y}`);
+            
+            applySearchClasses(linkUpdate, true);
+
+            link.exit().remove();
+
+            const node = g.selectAll('g.node')
+                .data(nodes, d => d.id);
+            
+            const nodeEnter = node.enter().append('g')
+                .attr('class', 'node')
+                .attr("transform", d => `translate(0,${source.x0 || 0})`)
+                .on('click', click);
+            
+            nodeEnter.append('circle')
+                .attr('r', 4.5);
+            
+            nodeEnter.append('text')
+                .attr("dy", "0.32em")
+                .attr("x", 12)
+                .text(d => d.data.name);
+            
+            const nodeUpdate = node.merge(nodeEnter).transition().duration(duration)
+                .attr("transform", d => `translate(${d.y},${d.x})`);
+            
+            const nodeSelection = node.merge(nodeEnter);
+            applySearchClasses(nodeSelection, false);
+
+            node.exit().transition().duration(duration).style('opacity', 0).remove();
+            
+            setupHoverEffects(g.selectAll('g.node'));
+        }
+
+        function click(event, d) {
+            if (isLinkMode || event.ctrlKey || event.metaKey) {
+                if (d.data.fullUrl) window.open(d.data.fullUrl, '_blank');
+                return;
+            }
+            if (d.children) {
+                d._children = d.children;
+                d.children = null;
+            } else {
+                d.children = d._children;
+                d._children = null;
+            }
+            update(d);
+        }
+
+        function diagonal(s, d) {
+            return `M${s.y},${s.x}
+                    C${(s.y + d.y) / 2},${s.x}
+                     ${(s.y + d.y) / 2},${d.x}
+                     ${d.y},${d.x}`;
+        }
+
+        function collapse(d) {
+            if(d.children) {
+                d._children = d.children;
+                d._children.forEach(collapse);
+                d.children = null;
+            }
+        }
+
+        function expand(d) {
+            if (d._children) {
+                d.children = d._children;
+                d.children.forEach(expand);
+                d._children = null;
+            } else if (d.children) {
+                d.children.forEach(expand);
+            }
+        }
+
+        function collapseToLevel(d, level) {
+            if (d.depth >= level) {
+                if (d.children) {
+                    d._children = d.children;
+                    d.children = null;
+                }
+            }
+            if (d.children) {
+                d.children.forEach(ch => collapseToLevel(ch, level));
+            }
+            if (d._children) {
+                d._children.forEach(ch => collapseToLevel(ch, level));
+            }
+        }
+
+        function expandToLevel(level) {
+            if(!rootData) return;
+            rootData.each(d => {
+                if(d._children) {
+                    d.children = d._children;
+                    d._children = null;
+                }
+            });
+            collapseToLevel(rootData, level);
+            update(rootData);
+        }
+
+        function expandAll() {
+             if(!rootData) return;
+             expand(rootData);
+             update(rootData);
+        }
+
+        function downloadImage(format) {
+            exportMenu.classList.add('hidden');
+            if (!svg) return;
+            
+            const svgNode = document.querySelector("#viz-container svg");
+            const serializer = new XMLSerializer();
+            let source = serializer.serializeToString(svgNode);
+
+            if(!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)){
+                source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+            }
+
+            const style = document.getElementById("viz-styles").innerHTML;
+            source = source.replace('>', `><style>${style}</style>`);
+
+            if (format === 'svg') {
+                const blob = new Blob([source], {type: "image/svg+xml;charset=utf-8"});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.download = `sitemap_viz_${new Date().getTime()}.svg`;
+                a.href = url;
+                a.click();
+                URL.revokeObjectURL(url);
+            } else {
+                const scale = 3; 
+                const canvas = document.createElement('canvas');
+                canvas.width = width * scale;
+                canvas.height = height * scale;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.fillStyle = '#F0F0F0'; 
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const img = new Image();
+                img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
+                
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0, width * scale, height * scale);
+                    const a = document.createElement('a');
+                    a.download = `sitemap_viz_${new Date().getTime()}.png`;
+                    a.href = canvas.toDataURL('image/png');
+                    a.click();
+                };
+            }
+        }
+
+        function setupHoverEffects(selection) {
+            selection.on("mouseover", (event, d) => {
+                const parts = d.ancestors().reverse().map(n => n.data.name);
+                const path = parts.slice(1).join('/');
+                const childrenCount = d.children ? d.children.length : (d._children ? d._children.length : 0);
+                
+                let content = `
+                    <div class="font-bold text-slate-600 text-xs">${d.data.name}</div>
+                    <div class="text-slate-400 mt-0.5 break-all text-xs">/${path}</div>
+                `;
+                
+                if(childrenCount > 0) {
+                    content += `<div class="mt-2 text-xs font-medium" style="color: ${PRIMARY_COLOR}">${childrenCount} sub-pages</div>`;
+                }
+
+                infoPanel.innerHTML = content;
+                infoPanel.style.opacity = 1;
+            })
+            .on("mouseout", () => {
+                infoPanel.innerHTML = '<div class="text-slate-400 text-xs">Hover over a node to view details</div>';
+            });
+        }
+
+    </script>
+</body>
+</html>
