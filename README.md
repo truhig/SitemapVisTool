@@ -16,5 +16,5 @@ This tool provides an interactive way to visualize your XML sitemaps using vario
 *   **Search:** Find specific pages or patterns within your visualized sitemap.
 *   **Link Mode:** Hold `Ctrl` or `Cmd` and click on any node to open the corresponding URL in a new tab.
 *   **Export:**
-    Save as a PNG or SVG
-    (note that the PNG will export with a default font, not the font you see on the canvas).
+    Save as a PNG, PDF or SVG
+    (note that due to a limitation PNG and PDF export with a default font, not the font you see on the canvas).
