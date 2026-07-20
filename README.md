@@ -14,6 +14,7 @@ This tool provides an interactive way to visualize your XML sitemaps using vario
         *   **Indented Tree:** A simple, list-like hierarchical view.
     *   **Interactive Exploration:** Pan, zoom, and expand/collapse nodes to navigate large sitemaps.
 *   **Search:** Find specific pages or patterns within your visualized sitemap.
+*   **Colour Themes:** Apply Purple, CM, Ocean, Forest, Sunset, or Slate visualization themes, or enter any custom hex colour. The selected theme is remembered in the browser and included in exports.
 *   **Link Mode:** Hold `Ctrl` or `Cmd` and click on any node to open the corresponding URL in a new tab.
 *   **Export:**
     Save as a PNG, PDF or SVG

@@ -9,6 +9,10 @@
     <!-- Added jsPDF for PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style id="viz-styles">
+        :root {
+            --viz-primary: #8A49FC;
+        }
+
         /* Global Font Update: Monospace */
         body { 
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; 
@@ -22,7 +26,7 @@
             transition: all 0.3s;
         }
         .node circle:hover {
-            stroke: #8A49FC; /* New Primary */
+            stroke: var(--viz-primary);
             stroke-width: 3px;
         }
         
@@ -58,7 +62,7 @@
         }
         .search-mode .link.link-path {
             opacity: 0.4;
-            stroke: #8A49FC;
+            stroke: var(--viz-primary);
         }
 
         /* Link Mode Styles */
@@ -66,12 +70,12 @@
             cursor: alias !important;
         }
         body.link-mode-active .node text {
-            fill: #8A49FC !important;
+            fill: var(--viz-primary) !important;
             text-decoration: underline;
             pointer-events: all !important;
         }
         body.link-mode-active .node circle {
-            stroke: #8A49FC;
+            stroke: var(--viz-primary);
         }
 
         /* Link Styling */
@@ -173,7 +177,7 @@
 <body class="bg-[#F0F0F0] h-screen flex flex-col font-mono">
 
     <!-- Header -->
-    <header class="bg-white border-b border-slate-200 px-4 py-3 shadow-sm z-10 flex flex-col lg:flex-row items-center justify-between gap-4">
+    <header class="relative bg-white border-b border-slate-200 px-4 py-3 shadow-sm z-50 flex flex-col lg:flex-row items-center justify-between gap-4">
         
         <!-- Left: Title -->
         <h1 class="font-bold text-slate-800 text-lg leading-tight tracking-tight whitespace-nowrap flex-shrink-0">Sitemap Visualizer</h1>
@@ -190,6 +194,48 @@
                     <option value="treemap">Cascaded Treemap</option>
                     <option value="indented">Indented Tree</option>
                 </select>
+            </div>
+
+            <!-- Visualization Colour Theme -->
+            <div id="theme-container" class="relative">
+                <button id="theme-menu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="theme-menu" class="h-10 px-3 text-sm border border-slate-300 rounded bg-white hover:bg-slate-50 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all flex items-center gap-2">
+                    <span id="theme-current-swatch" class="w-4 h-4 rounded-full border border-slate-300 shadow-sm" style="background-color: #8A49FC;"></span>
+                    <span id="theme-current-label">Purple</span>
+                    <svg class="text-slate-400" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+
+                <div id="theme-menu" class="hidden absolute left-0 top-full mt-1.5 w-72 bg-white/95 backdrop-blur-md rounded-lg border border-slate-200 shadow-xl z-30 p-3" role="dialog" aria-label="Visualization colour theme">
+                    <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Themes</div>
+                    <div class="grid grid-cols-2 gap-2" id="theme-presets">
+                        <button type="button" data-theme="purple" class="theme-preset text-left px-2.5 py-2 rounded-md border border-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary transition-all" aria-pressed="true">
+                            <span class="flex items-center gap-2"><span class="w-4 h-4 rounded-full border border-slate-200" style="background-color: #8A49FC;"></span><span class="text-xs text-slate-700 font-medium">Purple</span></span>
+                        </button>
+                        <button type="button" data-theme="cm" class="theme-preset text-left px-2.5 py-2 rounded-md border border-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary transition-all" aria-pressed="false">
+                            <span class="flex items-center gap-2"><span class="w-4 h-4 rounded-full border border-slate-200" style="background-color: #07213f;"></span><span class="text-xs text-slate-700 font-medium">CM</span></span>
+                        </button>
+                        <button type="button" data-theme="ocean" class="theme-preset text-left px-2.5 py-2 rounded-md border border-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary transition-all" aria-pressed="false">
+                            <span class="flex items-center gap-2"><span class="w-4 h-4 rounded-full border border-slate-200" style="background-color: #0369A1;"></span><span class="text-xs text-slate-700 font-medium">Ocean</span></span>
+                        </button>
+                        <button type="button" data-theme="forest" class="theme-preset text-left px-2.5 py-2 rounded-md border border-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary transition-all" aria-pressed="false">
+                            <span class="flex items-center gap-2"><span class="w-4 h-4 rounded-full border border-slate-200" style="background-color: #166534;"></span><span class="text-xs text-slate-700 font-medium">Forest</span></span>
+                        </button>
+                        <button type="button" data-theme="sunset" class="theme-preset text-left px-2.5 py-2 rounded-md border border-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary transition-all" aria-pressed="false">
+                            <span class="flex items-center gap-2"><span class="w-4 h-4 rounded-full border border-slate-200" style="background-color: #C2410C;"></span><span class="text-xs text-slate-700 font-medium">Sunset</span></span>
+                        </button>
+                        <button type="button" data-theme="slate" class="theme-preset text-left px-2.5 py-2 rounded-md border border-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary transition-all" aria-pressed="false">
+                            <span class="flex items-center gap-2"><span class="w-4 h-4 rounded-full border border-slate-200" style="background-color: #334155;"></span><span class="text-xs text-slate-700 font-medium">Slate</span></span>
+                        </button>
+                    </div>
+
+                    <div class="border-t border-slate-200 mt-3 pt-3">
+                        <label for="custom-hex-input" class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Custom colour</label>
+                        <div class="flex items-center gap-2">
+                            <input id="custom-color-picker" type="color" value="#8a49fc" aria-label="Choose a custom visualization colour" class="w-10 h-10 p-1 bg-white border border-slate-300 rounded cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary">
+                            <input id="custom-hex-input" type="text" value="#8A49FC" maxlength="7" spellcheck="false" autocomplete="off" aria-describedby="custom-hex-error" class="h-10 min-w-0 flex-1 px-3 text-sm uppercase border border-slate-300 rounded bg-white focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary font-mono" placeholder="#8A49FC">
+                        </div>
+                        <div id="custom-hex-error" class="hidden text-[10px] text-red-600 mt-1.5">Enter a 3- or 6-digit hex colour.</div>
+                    </div>
+                </div>
             </div>
 
             <!-- Depth Controls -->
@@ -320,8 +366,17 @@
         let searchTerm = "";
         let treemapRatio = 'auto'; // Aspect Ratio State
 
-        const PRIMARY_COLOR = '#8A49FC';
-        const colors = d3.scaleOrdinal(d3.schemeTableau10);
+        const COLOR_THEMES = {
+            purple: { name: 'Purple', primary: '#8A49FC', light: '#F3E8FF' },
+            cm: { name: 'CM', primary: '#07213F', light: '#ABE0FC' },
+            ocean: { name: 'Ocean', primary: '#0369A1', light: '#BAE6FD' },
+            forest: { name: 'Forest', primary: '#166534', light: '#BBF7D0' },
+            sunset: { name: 'Sunset', primary: '#C2410C', light: '#FED7AA' },
+            slate: { name: 'Slate', primary: '#334155', light: '#E2E8F0' }
+        };
+        const THEME_STORAGE_KEY = 'sitemap-visualizer-colour-theme';
+        let selectedThemeKey = 'purple';
+        let currentTheme = { ...COLOR_THEMES.purple };
 
         // --- DOM Elements ---
         const container = document.getElementById('viz-container');
@@ -342,6 +397,14 @@
         const clearFileBtn = document.getElementById('clear-file-btn');
         const treemapControls = document.getElementById('treemap-controls');
         const linkModeBadge = document.getElementById('link-mode-badge');
+        const themeContainer = document.getElementById('theme-container');
+        const themeMenuBtn = document.getElementById('theme-menu-btn');
+        const themeMenu = document.getElementById('theme-menu');
+        const themeCurrentSwatch = document.getElementById('theme-current-swatch');
+        const themeCurrentLabel = document.getElementById('theme-current-label');
+        const customColorPicker = document.getElementById('custom-color-picker');
+        const customHexInput = document.getElementById('custom-hex-input');
+        const customHexError = document.getElementById('custom-hex-error');
 
         const clearFileModal = document.getElementById('clear-file-modal');
         const clearFileModalContent = document.getElementById('clear-file-modal-content');
@@ -363,7 +426,176 @@
             if (!exportMenu.contains(e.target) && !exportMenuBtn.contains(e.target)) {
                 closeExportMenu();
             }
+            if (!themeContainer.contains(e.target)) {
+                closeThemeMenu();
+            }
         });
+
+        function openThemeMenu() {
+            themeMenu.classList.remove('hidden');
+            themeMenuBtn.setAttribute('aria-expanded', 'true');
+        }
+
+        function closeThemeMenu() {
+            themeMenu.classList.add('hidden');
+            themeMenuBtn.setAttribute('aria-expanded', 'false');
+        }
+
+        themeMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (themeMenu.classList.contains('hidden')) openThemeMenu();
+            else closeThemeMenu();
+        });
+
+        themeMenu.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeThemeMenu();
+                themeMenuBtn.focus();
+            }
+        });
+
+        function normalizeHex(value) {
+            const match = value.trim().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+            if (!match) return null;
+            let digits = match[1];
+            if (digits.length === 3) digits = digits.split('').map(char => char + char).join('');
+            return `#${digits.toUpperCase()}`;
+        }
+
+        function getCustomLightColor(primary) {
+            return d3.color(d3.interpolateRgb(primary, '#FFFFFF')(0.82)).formatHex().toUpperCase();
+        }
+
+        function getContrastTextColor(background) {
+            const rgb = d3.rgb(background);
+            const channels = [rgb.r, rgb.g, rgb.b].map(value => {
+                const channel = value / 255;
+                return channel <= 0.04045 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+            });
+            const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+            const whiteContrast = 1.05 / (luminance + 0.05);
+            const blackContrast = (luminance + 0.05) / 0.05;
+            return whiteContrast >= blackContrast ? '#FFFFFF' : '#000000';
+        }
+
+        function updateThemeControls() {
+            themeCurrentSwatch.style.backgroundColor = currentTheme.primary;
+            themeCurrentLabel.textContent = currentTheme.name;
+            customColorPicker.value = currentTheme.primary.toLowerCase();
+            customHexInput.value = currentTheme.primary;
+            customHexInput.removeAttribute('aria-invalid');
+            customHexError.classList.add('hidden');
+
+            document.querySelectorAll('.theme-preset').forEach(button => {
+                const isSelected = button.dataset.theme === selectedThemeKey;
+                button.setAttribute('aria-pressed', String(isSelected));
+                button.classList.toggle('border-primary', isSelected);
+                button.classList.toggle('ring-1', isSelected);
+                button.classList.toggle('ring-primary', isSelected);
+                button.classList.toggle('border-slate-200', !isSelected);
+            });
+        }
+
+        function persistTheme() {
+            try {
+                localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({
+                    key: selectedThemeKey,
+                    primary: currentTheme.primary
+                }));
+            } catch (error) {
+                console.warn('Unable to save colour theme preference.', error);
+            }
+        }
+
+        function applyTheme(themeKey, customPrimary = null, shouldPersist = true) {
+            if (themeKey === 'custom') {
+                const primary = normalizeHex(customPrimary || '');
+                if (!primary) return false;
+                selectedThemeKey = 'custom';
+                currentTheme = {
+                    name: 'Custom',
+                    primary,
+                    light: getCustomLightColor(primary)
+                };
+            } else if (COLOR_THEMES[themeKey]) {
+                selectedThemeKey = themeKey;
+                currentTheme = { ...COLOR_THEMES[themeKey] };
+            } else {
+                return false;
+            }
+
+            document.documentElement.style.setProperty('--viz-primary', currentTheme.primary);
+            updateThemeControls();
+            if (shouldPersist) persistTheme();
+            if (rootData) update(rootData);
+            return true;
+        }
+
+        function restoreTheme() {
+            try {
+                const savedTheme = JSON.parse(localStorage.getItem(THEME_STORAGE_KEY));
+                if (savedTheme?.key === 'custom' && normalizeHex(savedTheme.primary)) {
+                    applyTheme('custom', savedTheme.primary, false);
+                    return;
+                }
+                if (savedTheme?.key && COLOR_THEMES[savedTheme.key]) {
+                    applyTheme(savedTheme.key, null, false);
+                    return;
+                }
+            } catch (error) {
+                console.warn('Unable to restore colour theme preference.', error);
+            }
+            applyTheme('purple', null, false);
+        }
+
+        document.querySelectorAll('.theme-preset').forEach(button => {
+            button.addEventListener('click', () => {
+                applyTheme(button.dataset.theme);
+                closeThemeMenu();
+                themeMenuBtn.focus();
+            });
+        });
+
+        customColorPicker.addEventListener('input', (e) => {
+            applyTheme('custom', e.target.value);
+        });
+
+        function applyCustomHexInput() {
+            const normalized = normalizeHex(customHexInput.value);
+            if (normalized) {
+                applyTheme('custom', normalized);
+                return true;
+            }
+            customHexInput.setAttribute('aria-invalid', 'true');
+            customHexError.classList.remove('hidden');
+            return false;
+        }
+
+        customHexInput.addEventListener('input', () => {
+            const isCompleteSixDigitHex = /^#?[0-9a-f]{6}$/i.test(customHexInput.value.trim());
+            if (isCompleteSixDigitHex) applyTheme('custom', customHexInput.value);
+            else {
+                customHexInput.setAttribute('aria-invalid', 'true');
+                customHexError.classList.remove('hidden');
+            }
+        });
+
+        customHexInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && applyCustomHexInput()) {
+                closeThemeMenu();
+                themeMenuBtn.focus();
+            }
+        });
+
+        customHexInput.addEventListener('blur', () => {
+            if (!applyCustomHexInput()) {
+                customHexInput.value = currentTheme.primary;
+                customHexInput.removeAttribute('aria-invalid');
+                customHexError.classList.add('hidden');
+            }
+        });
+
+        restoreTheme();
 
         function openExportMenu() {
             exportMenu.classList.remove('hidden');
@@ -790,8 +1022,8 @@
                 // Reset circle colors if not in search mode
                 if(!isLink) {
                     selection.select("circle")
-                        .attr("fill", d => d._children ? PRIMARY_COLOR : "#fff")
-                        .attr("stroke", PRIMARY_COLOR)
+                        .attr("fill", d => d._children ? currentTheme.primary : "#fff")
+                        .attr("stroke", currentTheme.primary)
                         .attr("r", d => d._children ? 6 : 4);
                 }
                 return;
@@ -805,8 +1037,8 @@
                 
                 // Specific styling for matched nodes
                 selection.select("circle")
-                    .attr("fill", d => d._isMatch ? "#ef4444" : (d._children ? PRIMARY_COLOR : "#fff"))
-                    .attr("stroke", d => d._isMatch ? "#ef4444" : PRIMARY_COLOR)
+                    .attr("fill", d => d._isMatch ? "#ef4444" : (d._children ? currentTheme.primary : "#fff"))
+                    .attr("stroke", d => d._isMatch ? "#ef4444" : currentTheme.primary)
                     .attr("r", d => d._isMatch ? 8 : (d._children ? 6 : 4));
             }
         }
@@ -1003,10 +1235,12 @@
             let maxDepth = 0;
             rootData.each(d => { if(d.depth > maxDepth) maxDepth = d.depth; });
             
-            const colorScale = d3.scaleLinear()
-                .domain([0, maxDepth])
-                .range([PRIMARY_COLOR, '#f3e8ff']) 
-                .interpolate(d3.interpolateRgb);
+            const colorScale = maxDepth > 1
+                ? d3.scaleLinear()
+                    .domain([1, maxDepth])
+                    .range([currentTheme.primary, currentTheme.light])
+                    .interpolate(d3.interpolateRgb)
+                : () => currentTheme.primary;
 
             const cells = g.selectAll("g.treemap-node")
                 .data(rootData.descendants().filter(d => d.depth > 0), d => d.id);
@@ -1041,9 +1275,7 @@
                 .attr("y", 13)
                 .text(d => d.data.name)
                 .style("opacity", d => (d.x1 - d.x0 > 35 && d.y1 - d.y0 > 15) ? 1 : 0) // Hide text if box is too small
-                .style("fill", d => {
-                    return (d.depth / (maxDepth || 1) < 0.4) ? "white" : "#1e293b";
-                });
+                .style("fill", d => getContrastTextColor(colorScale(d.depth)));
             
             const cellUpdate = cells.merge(cellEnter);
             
@@ -1055,7 +1287,8 @@
                 .attr("fill", d => colorScale(d.depth));
 
             cellUpdate.select("text").transition().duration(duration)
-                .style("opacity", d => (d.x1 - d.x0 > 35 && d.y1 - d.y0 > 15) ? 1 : 0);
+                .style("opacity", d => (d.x1 - d.x0 > 35 && d.y1 - d.y0 > 15) ? 1 : 0)
+                .style("fill", d => getContrastTextColor(colorScale(d.depth)));
 
             cells.exit().remove();
             
@@ -1088,7 +1321,7 @@
             const linkEnter = link.enter().append('path')
                 .attr('class', 'link')
                 .attr("fill", "none")
-                .style('stroke', '#e2e8f0');
+                .attr('stroke', '#e2e8f0');
 
             const linkUpdate = link.merge(linkEnter);
             linkUpdate.transition().duration(duration)
@@ -1312,7 +1545,7 @@
                 `;
                 
                 if(childrenCount > 0) {
-                    content += `<div class="mt-2 text-xs font-medium" style="color: ${PRIMARY_COLOR}">${childrenCount} sub-pages</div>`;
+                    content += `<div class="mt-2 text-xs font-medium" style="color: ${currentTheme.primary}">${childrenCount} sub-pages</div>`;
                 }
 
                 infoPanel.innerHTML = content;
